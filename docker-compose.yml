@@ -5,7 +5,7 @@ services:
     ports:
       - "8000:80"
     environment:
-      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_HOST: db
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
@@ -14,7 +14,6 @@ services:
       - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins
     depends_on:
       - db
-    restart: always
 
   db:
     image: mysql:8.0
@@ -26,7 +25,6 @@ services:
       MYSQL_PASSWORD: wordpress
     volumes:
       - db_data:/var/lib/mysql
-    restart: always
 
 volumes:
   wordpress_data:
