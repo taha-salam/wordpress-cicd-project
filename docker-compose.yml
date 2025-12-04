@@ -3,7 +3,6 @@ version: '3.8'
 services:
   wordpress:
     image: wordpress:latest
-    container_name: wordpress_app
     ports:
       - "8000:80"
     environment:
@@ -13,14 +12,12 @@ services:
       WORDPRESS_DB_NAME: wordpress
     volumes:
       - wordpress_data:/var/www/html
-      - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins   # <-- THIS LINE FIXES CI!
+      - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins
     depends_on:
       - db
-    restart: always
 
   db:
     image: mysql:8.0
-    container_name: wordpress_db
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: wordpress
@@ -28,7 +25,6 @@ services:
       MYSQL_PASSWORD: wordpress
     volumes:
       - db_data:/var/lib/mysql
-    restart: always
 
 volumes:
   wordpress_data:
