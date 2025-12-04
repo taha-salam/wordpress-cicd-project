@@ -8,6 +8,9 @@ services:
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_CONFIG_EXTRA: |
+        /* Fixes Docker Hub breaking REST API auth */
+        define('REST_AUTHENTICATION_DISABLED', false);
     volumes:
       - wordpress_data:/var/www/html
       - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins
