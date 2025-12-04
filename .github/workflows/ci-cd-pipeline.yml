@@ -43,15 +43,8 @@ jobs:
           echo "Triggered by: ${{ github.event_name }}"
           echo "Actor: ${{ github.actor }}"
       
-      - name: List Changed Files
-        if: github.event_name == 'push'
-        run: |
-          echo "Files changed in this push:"
-          git diff --name-only HEAD^ HEAD || echo "Initial commit"
-      
       - name: Source Stage Complete
-        run: |
-          echo "Source stage validation completed successfully!"
+        run: echo "Source stage validation completed successfully!"
 
   build:
     name: Build Stage - Setup WordPress
@@ -69,31 +62,63 @@ jobs:
         run: |
           echo "Starting WordPress environment..."
           docker compose up -d
-          echo "Waiting for WordPress to initialize..."
-          sleep 50
+          echo "Waiting for MySQL to be ready..."
+          sleep 30
       
-      - name: Verify WordPress is Running
+      - name: Wait for WordPress Installation Page
         run: |
-          echo "Testing WordPress availability..."
-          curl -f http://localhost:8000 || (echo "WordPress not reachable" && exit 1)
-          echo "WordPress is running!"
+          echo "Waiting for WordPress to be accessible..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8000 > /dev/null 2>&1; then
+              echo "WordPress is accessible!"
+              break
+            fi
+            echo "Attempt $i: Waiting..."
+            sleep 2
+          done
+      
+      - name: Install WP-CLI
+        run: |
+          docker compose exec -T wordpress bash -c "
+            curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+            chmod +x wp-cli.phar
+            mv wp-cli.phar /usr/local/bin/wp
+          "
+      
+      - name: Install WordPress
+        run: |
+          echo "Installing WordPress..."
+          docker compose exec -T wordpress wp core install \
+            --url="http://localhost:8000" \
+            --title="Test Site" \
+            --admin_user="admin" \
+            --admin_password="password" \
+            --admin_email="admin@test.com" \
+            --skip-email \
+            --allow-root
           
-          echo "Testing REST API..."
-          curl -f http://localhost:8000/wp-json/ || (echo "REST API not reachable" && exit 1)
-          echo "REST API is accessible!"
+          echo "WordPress installed successfully!"
+      
+      - name: Enable Application Passwords
+        run: |
+          docker compose exec -T wordpress wp plugin install application-passwords --activate --allow-root || echo "Plugin not needed for WP 5.6+"
+          docker compose exec -T wordpress wp rewrite structure '/%postname%/' --allow-root
+      
+      - name: Verify WordPress Setup
+        run: |
+          echo "Testing WordPress REST API..."
+          curl -u admin:password http://localhost:8000/wp-json/wp/v2/posts
+          echo ""
+          echo "WordPress is ready for testing!"
       
       - name: Show Container Status
         if: always()
         run: |
           echo "Container Status:"
           docker compose ps
-          echo ""
-          echo "WordPress Logs:"
-          docker compose logs wordpress | tail -20
       
       - name: Build Stage Complete
-        run: |
-          echo "Build stage completed successfully!"
+        run: echo "Build stage completed successfully!"
 
   test-backend:
     name: Test Stage - Backend API Testing
@@ -117,39 +142,52 @@ jobs:
       - name: Start WordPress Environment
         run: |
           docker compose up -d
-          echo "Waiting for WordPress initialization..."
-          sleep 60
+          echo "Waiting for MySQL..."
+          sleep 30
       
-      - name: Configure WordPress
+      - name: Wait for WordPress
         run: |
-          echo "Installing WP-CLI..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8000 > /dev/null 2>&1; then
+              echo "WordPress is accessible!"
+              break
+            fi
+            sleep 2
+          done
+      
+      - name: Install WP-CLI
+        run: |
           docker compose exec -T wordpress bash -c "
             curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
             chmod +x wp-cli.phar
             mv wp-cli.phar /usr/local/bin/wp
           "
-          
-          echo "Configuring WordPress..."
-          docker compose exec -T wordpress wp core install \
-            --url='http://localhost:8000' \
-            --title='Test Site' \
-            --admin_user='admin' \
-            --admin_password='password' \
-            --admin_email='admin@test.com' \
-            --skip-email \
-            --allow-root || echo "WordPress already installed"
-          
-          echo "WordPress configured!"
       
-      - name: Verify WordPress Setup
+      - name: Configure WordPress
         run: |
-          echo "Testing WordPress REST API..."
-          curl -u admin:password http://localhost:8000/wp-json/wp/v2/posts || echo "API test failed"
+          echo "Installing WordPress..."
+          docker compose exec -T wordpress wp core install \
+            --url="http://localhost:8000" \
+            --title="Test Site" \
+            --admin_user="admin" \
+            --admin_password="password" \
+            --admin_email="admin@test.com" \
+            --skip-email \
+            --allow-root
+          
+          docker compose exec -T wordpress wp rewrite structure '/%postname%/' --allow-root
+          
+          echo "WordPress configured successfully!"
+      
+      - name: Verify REST API Before Tests
+        run: |
+          echo "Testing REST API endpoint..."
+          curl -v -u admin:password http://localhost:8000/wp-json/wp/v2/posts
       
       - name: Run Backend Integration Tests
         run: |
           echo "Running backend API tests..."
-          pytest tests/backend/test_integration.py -v --html=backend-report.html --self-contained-html
+          pytest tests/backend/test_integration.py -v -s --html=backend-report.html --self-contained-html
       
       - name: Upload Test Report
         if: always()
@@ -162,14 +200,13 @@ jobs:
         if: failure()
         run: |
           echo "WordPress Logs:"
-          docker compose logs wordpress
+          docker compose logs wordpress | tail -50
           echo ""
           echo "MySQL Logs:"
-          docker compose logs db
+          docker compose logs db | tail -30
       
       - name: Backend Tests Complete
-        run: |
-          echo "Backend testing completed!"
+        run: echo "Backend testing completed!"
 
   pipeline-summary:
     name: Pipeline Summary
