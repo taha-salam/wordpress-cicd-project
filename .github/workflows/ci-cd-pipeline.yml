@@ -85,6 +85,45 @@ jobs:
           echo "Waiting for WordPress to initialize..."
           sleep 30
       
+      - name: Install WP-CLI in Build Stage
+        run: |
+          echo "Installing WP-CLI..."
+          docker compose exec -T wordpress bash -c "
+            if [ ! -f /usr/local/bin/wp ]; then
+              curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+              chmod +x wp-cli.phar
+              mv wp-cli.phar /usr/local/bin/wp
+            fi
+          "
+      
+      - name: Install WordPress Core
+        run: |
+          echo "Installing WordPress..."
+          docker compose exec -T wordpress wp core install \
+            --url='http://localhost:8000' \
+            --title='Test Site' \
+            --admin_user='admin' \
+            --admin_password='password' \
+            --admin_email='admin@test.com' \
+            --skip-email \
+            --allow-root
+          
+          # Verify installation
+          docker compose exec -T wordpress wp core is-installed --allow-root && echo "WordPress installation verified" || (echo "WordPress installation failed" && exit 1)
+          
+          # Enable pretty permalinks for REST API
+          echo "Configuring permalinks..."
+          docker compose exec -T wordpress wp rewrite structure '/%postname%/' --allow-root
+          docker compose exec -T wordpress wp rewrite flush --allow-root
+          
+          # Enable Apache mod_rewrite
+          echo "Enabling Apache mod_rewrite..."
+          docker compose exec -T wordpress a2enmod rewrite
+          docker compose exec -T wordpress service apache2 restart
+          
+          # Wait for Apache to restart
+          sleep 5
+      
       - name: Verify WordPress is Running
         run: |
           echo "Testing WordPress availability..."
@@ -149,7 +188,7 @@ jobs:
       - name: Verify WordPress Files
         run: |
           echo "Checking WordPress installation..."
-          docker compose exec -T wordpress ls -la /var/www/html/ || true
+          docker compose exec -T wordpress ls -la /var/www/html/ | head -10 || true
           docker compose exec -T wordpress test -f /var/www/html/wp-config.php && echo "wp-config.php exists" || echo "wp-config.php missing"
       
       - name: Install WP-CLI
@@ -182,6 +221,19 @@ jobs:
           
           # Verify installation
           docker compose exec -T wordpress wp core is-installed --allow-root && echo "WordPress is installed" || (echo "WordPress installation failed" && exit 1)
+          
+          # Enable pretty permalinks for REST API
+          echo "Configuring permalinks..."
+          docker compose exec -T wordpress wp rewrite structure '/%postname%/' --allow-root
+          docker compose exec -T wordpress wp rewrite flush --allow-root
+          
+          # Enable Apache mod_rewrite
+          echo "Enabling Apache mod_rewrite..."
+          docker compose exec -T wordpress a2enmod rewrite
+          docker compose exec -T wordpress service apache2 restart
+          
+          # Wait for Apache to restart
+          sleep 5
       
       - name: Check WordPress Status
         run: |
@@ -195,6 +247,10 @@ jobs:
           echo ""
           echo "Rewrite rules:"
           docker compose exec -T wordpress wp rewrite list --allow-root || true
+          
+          echo ""
+          echo "Permalink structure:"
+          docker compose exec -T wordpress wp rewrite structure --allow-root || true
       
       - name: Verify WordPress REST API
         run: |
@@ -203,7 +259,7 @@ jobs:
           
           echo ""
           echo "Testing authenticated posts endpoint..."
-          curl -u admin:password http://localhost:8000/wp-json/wp/v2/posts 2>&1 | head -20
+          curl -u admin:password -v http://localhost:8000/wp-json/wp/v2/posts 2>&1 | head -20
       
       - name: Run Backend Integration Tests
         run: |
@@ -220,14 +276,17 @@ jobs:
       - name: Show Logs on Failure
         if: failure()
         run: |
-          echo "WordPress Logs:"
-          docker compose logs wordpress
+          echo "===== WordPress Logs ====="
+          docker compose logs wordpress | tail -50
           echo ""
-          echo "MySQL Logs:"
-          docker compose logs db
+          echo "===== MySQL Logs ====="
+          docker compose logs db | tail -50
           echo ""
-          echo "WordPress Error Log:"
+          echo "===== WordPress Error Log ====="
           docker compose exec -T wordpress cat /var/www/html/wp-content/debug.log 2>/dev/null || echo "No debug log found"
+          echo ""
+          echo "===== Apache Error Log ====="
+          docker compose exec -T wordpress cat /var/log/apache2/error.log 2>/dev/null || echo "No Apache error log found"
       
       - name: Backend Tests Complete
         run: |
@@ -254,20 +313,26 @@ jobs:
         run: |
           if [ -f "composer.json" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
+            echo "composer.json found"
           else
             echo "exists=false" >> $GITHUB_OUTPUT
+            echo "composer.json not found"
           fi
       
       - name: Install Composer Dependencies
         if: steps.composer_check.outputs.exists == 'true'
-        run: composer install --no-interaction --prefer-dist
+        run: |
+          echo "Installing Composer dependencies..."
+          composer install --no-interaction --prefer-dist
       
       - name: Run PHP Unit Tests (No WordPress Required)
         run: |
           echo "Running PHPUnit tests..."
           if [ -f "vendor/autoload.php" ]; then
+            echo "Using Composer autoload"
             phpunit --bootstrap vendor/autoload.php tests/backend/WordPressBackendUnitTest.php
           else
+            echo "Running without Composer autoload"
             phpunit tests/backend/WordPressBackendUnitTest.php
           fi
       
@@ -280,6 +345,10 @@ jobs:
             tests/backend/*.xml
             tests/backend/*.html
           if-no-files-found: ignore
+      
+      - name: PHP Unit Tests Complete
+        run: |
+          echo "PHP unit testing completed!"
 
   pipeline-summary:
     name: Pipeline Summary

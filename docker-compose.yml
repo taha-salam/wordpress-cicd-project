@@ -11,12 +11,24 @@ services:
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_CONFIG_EXTRA: |
+        /* Enable REST API authentication */
+        define('WP_DEBUG', false);
+        define('WP_DEBUG_LOG', true);
+        define('WP_DEBUG_DISPLAY', false);
     volumes:
       - wordpress_data:/var/www/html
-      - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins   # <-- THIS LINE FIXES CI!
+      - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins
+      - ./apache-config.conf:/etc/apache2/conf-available/wordpress.conf
     depends_on:
       - db
     restart: always
+    command: >
+      bash -c "
+      a2enmod rewrite &&
+      a2enconf wordpress &&
+      apache2-foreground
+      "
 
   db:
     image: mysql:8.0
