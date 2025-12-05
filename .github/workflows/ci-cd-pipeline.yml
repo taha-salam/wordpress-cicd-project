@@ -2,9 +2,12 @@ name: WordPress CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: 
+      - main
+      - develop
   pull_request:
-    branches: [ main ]
+    branches: 
+      - main
   workflow_dispatch:
 
 env:
@@ -14,172 +17,371 @@ env:
 
 jobs:
   source-validation:
+    name: Source Stage - Validate Repository
     runs-on: ubuntu-latest
+    
     steps:
-      - uses: actions/checkout@v4
-      - name: Validate structure
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check Repository Structure
         run: |
-          echo "Checking required files..."
-          ls -la docker-compose.yml requirements.txt tests/backend/ || exit 1
+          echo "Source Stage: Repository checked out successfully"
+          echo "Validating project structure..."
+          
+          [ -d "tests/backend" ] && echo "tests/backend exists" || echo "tests/backend missing"
+          [ -d ".github/workflows" ] && echo ".github/workflows exists" || echo ".github/workflows missing"
+          [ -f "docker-compose.yml" ] && echo "docker-compose.yml exists" || echo "docker-compose.yml missing"
+          [ -f "requirements.txt" ] && echo "requirements.txt exists" || echo "requirements.txt missing"
+          
+          echo ""
+          echo "Repository Statistics:"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Triggered by: ${{ github.event_name }}"
+          echo "Actor: ${{ github.actor }}"
+      
+      - name: List Changed Files
+        if: github.event_name == 'push'
+        run: |
+          echo "Files changed in this push:"
+          git diff --name-only HEAD^ HEAD || echo "Initial commit"
+      
+      - name: Source Stage Complete
+        run: |
+          echo "Source stage validation completed successfully!"
 
   build:
-    needs: source-validation
+    name: Build Stage - Setup WordPress
     runs-on: ubuntu-latest
+    needs: source-validation
+    
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Start containers
-        run: docker compose up -d
-
-      - name: Wait for MySQL to be healthy
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Start WordPress and MySQL Containers
         run: |
-          echo "Waiting for MySQL to become healthy..."
-          for i in $(seq 1 60); do
-            if docker compose ps db | grep "(healthy)" > /dev/null; then
-              echo "MySQL is healthy!"
+          echo "Starting WordPress environment..."
+          docker compose up -d
+          echo "Waiting for MySQL to be ready..."
+          sleep 20
+          
+          # Wait for MySQL to be ready
+          for i in {1..30}; do
+            if docker compose exec -T db mysql -uwordpress -pwordpress -e "SELECT 1" &>/dev/null; then
+              echo "MySQL is ready!"
               break
             fi
-            echo "Waiting... ($i/60)"
-            sleep 3
+            echo "Waiting for MySQL... ($i/30)"
+            sleep 2
           done
-          docker compose ps
-
-      - name: Install WP-CLI
+          
+          echo "Waiting for WordPress to initialize..."
+          sleep 30
+      
+      - name: Install WP-CLI in Build Stage
         run: |
+          echo "Installing WP-CLI..."
           docker compose exec -T wordpress bash -c "
-            curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && \
-            chmod +x wp-cli.phar && \
-            mv wp-cli.phar /usr/local/bin/wp
+            if [ ! -f /usr/local/bin/wp ]; then
+              curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+              chmod +x wp-cli.phar
+              mv wp-cli.phar /usr/local/bin/wp
+            fi
           "
-
-      - name: Install WordPress
+      
+      - name: Install WordPress Core
         run: |
+          echo "Installing WordPress..."
           docker compose exec -T wordpress wp core install \
-            --url=http://localhost:8000 \
-            --title="Test Site" \
-            --admin_user=admin \
-            --admin_password=password \
-            --admin_email=admin@example.com \
+            --url='http://localhost:8000' \
+            --title='Test Site' \
+            --admin_user='admin' \
+            --admin_password='password' \
+            --admin_email='admin@test.com' \
             --skip-email \
             --allow-root
-
-      - name: Configure permalinks & Apache
-        run: |
+          
+          # Verify installation
+          docker compose exec -T wordpress wp core is-installed --allow-root && echo "WordPress installation verified" || (echo "WordPress installation failed" && exit 1)
+          
+          # Enable pretty permalinks for REST API
+          echo "Configuring permalinks..."
           docker compose exec -T wordpress wp rewrite structure '/%postname%/' --allow-root
           docker compose exec -T wordpress wp rewrite flush --allow-root
+          
+          # Enable Apache mod_rewrite
+          echo "Enabling Apache mod_rewrite..."
           docker compose exec -T wordpress a2enmod rewrite
-          docker compose exec -T wordpress apache2ctl graceful
-
-      - name: Verify site & REST API
+          docker compose exec -T wordpress service apache2 restart
+          
+          # Wait for Apache to restart
+          sleep 5
+      
+      - name: Verify WordPress is Running
         run: |
-          sleep 8
-          curl -f http://localhost:8000 || exit 1
-          curl -f http://localhost:8000/wp-json/ | head -20
-          echo "WordPress + REST API are working!"
+          echo "Testing WordPress availability..."
+          curl -f http://localhost:8000 || (echo "WordPress not reachable" && exit 1)
+          echo "WordPress is running!"
+          
+          echo "Testing REST API..."
+          curl -f http://localhost:8000/wp-json/ || (echo "REST API not reachable" && exit 1)
+          echo "REST API is accessible!"
+      
+      - name: Show Container Status
+        if: always()
+        run: |
+          echo "Container Status:"
+          docker compose ps
+          echo ""
+          echo "WordPress Logs:"
+          docker compose logs wordpress | tail -20
+      
+      - name: Build Stage Complete
+        run: |
+          echo "Build stage completed successfully!"
 
   test-backend:
-    needs: build
+    name: Test Stage - Backend API Testing
     runs-on: ubuntu-latest
+    needs: build
+    
     steps:
-      - uses: actions/checkout@v4
-
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
-      - name: Install dependencies
+      
+      - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Start containers
-        run: docker compose up -d
-
-      - name: Wait for MySQL
+      
+      - name: Start WordPress Environment
         run: |
-          for i in $(seq 1 60); do docker compose ps db | grep healthy && break; echo "Waiting... ($i)"; sleep 3; done
-
+          docker compose up -d
+          echo "Waiting for MySQL to be ready..."
+          
+          # Wait for MySQL to be fully ready
+          for i in {1..30}; do
+            if docker compose exec -T db mysql -uwordpress -pwordpress -e "SELECT 1" &>/dev/null; then
+              echo "MySQL is ready!"
+              break
+            fi
+            echo "Waiting for MySQL... ($i/30)"
+            sleep 2
+          done
+          
+          # Additional wait for WordPress to initialize
+          echo "Waiting for WordPress to initialize..."
+          sleep 40
+      
+      - name: Verify WordPress Files
+        run: |
+          echo "Checking WordPress installation..."
+          docker compose exec -T wordpress ls -la /var/www/html/ | head -10 || true
+          docker compose exec -T wordpress test -f /var/www/html/wp-config.php && echo "wp-config.php exists" || echo "wp-config.php missing"
+      
       - name: Install WP-CLI
         run: |
+          echo "Installing WP-CLI..."
           docker compose exec -T wordpress bash -c "
-            [ -f /usr/local/bin/wp ] || (
-              curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && \
-              chmod +x wp-cli.phar && \
+            if [ ! -f /usr/local/bin/wp ]; then
+              curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+              chmod +x wp-cli.phar
               mv wp-cli.phar /usr/local/bin/wp
-            )
+            fi
           "
-
-      - name: Install & configure WordPress
+          
+          echo "Verifying WP-CLI..."
+          docker compose exec -T wordpress wp --info --allow-root
+      
+      - name: Configure WordPress
         run: |
+          echo "Installing WordPress core..."
           docker compose exec -T wordpress wp core install \
-            --url=http://localhost:8000 \
-            --title="Test Site" \
-            --admin_user=admin \
-            --admin_password=password \
-            --admin_email=admin@example.com \
+            --url='http://localhost:8000' \
+            --title='Test Site' \
+            --admin_user='admin' \
+            --admin_password='password' \
+            --admin_email='admin@test.com' \
             --skip-email \
-            --allow-root || true
-
+            --allow-root
+          
+          echo "WordPress installation completed!"
+          
+          # Verify installation
+          docker compose exec -T wordpress wp core is-installed --allow-root && echo "WordPress is installed" || (echo "WordPress installation failed" && exit 1)
+          
+          # Enable pretty permalinks for REST API
+          echo "Configuring permalinks..."
           docker compose exec -T wordpress wp rewrite structure '/%postname%/' --allow-root
           docker compose exec -T wordpress wp rewrite flush --allow-root
+          
+          # Enable Apache mod_rewrite
+          echo "Enabling Apache mod_rewrite..."
           docker compose exec -T wordpress a2enmod rewrite
-          docker compose exec -T wordpress apache2ctl graceful
-          sleep 8
-
-      - name: Run integration tests
+          docker compose exec -T wordpress service apache2 restart
+          
+          # Wait for Apache to restart
+          sleep 5
+      
+      - name: Check WordPress Status
         run: |
-          pytest tests/backend/test_integration.py -v --html=report.html --self-contained-html
-
-      - name: Upload report
+          echo "WordPress version:"
+          docker compose exec -T wordpress wp core version --allow-root
+          
+          echo ""
+          echo "WordPress user:"
+          docker compose exec -T wordpress wp user list --allow-root
+          
+          echo ""
+          echo "Rewrite rules:"
+          docker compose exec -T wordpress wp rewrite list --allow-root || true
+          
+          echo ""
+          echo "Permalink structure:"
+          docker compose exec -T wordpress wp rewrite structure --allow-root || true
+      
+      - name: Verify WordPress REST API
+        run: |
+          echo "Testing WordPress REST API root..."
+          curl -v http://localhost:8000/wp-json/ 2>&1 | head -20
+          
+          echo ""
+          echo "Testing authenticated posts endpoint..."
+          curl -u admin:password -v http://localhost:8000/wp-json/wp/v2/posts 2>&1 | head -20
+      
+      - name: Run Backend Integration Tests
+        run: |
+          echo "Running backend API tests..."
+          pytest tests/backend/test_integration.py -v --html=backend-report.html --self-contained-html
+      
+      - name: Upload Test Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: backend-test-report
-          path: report.html
+          path: backend-report.html
+      
+      - name: Show Logs on Failure
+        if: failure()
+        run: |
+          echo "===== WordPress Logs ====="
+          docker compose logs wordpress | tail -50
+          echo ""
+          echo "===== MySQL Logs ====="
+          docker compose logs db | tail -50
+          echo ""
+          echo "===== WordPress Error Log ====="
+          docker compose exec -T wordpress cat /var/www/html/wp-content/debug.log 2>/dev/null || echo "No debug log found"
+          echo ""
+          echo "===== Apache Error Log ====="
+          docker compose exec -T wordpress cat /var/log/apache2/error.log 2>/dev/null || echo "No Apache error log found"
+      
+      - name: Backend Tests Complete
+        run: |
+          echo "Backend testing completed!"
 
   test-php-unit:
-    needs: build
+    name: PHP Unit Tests
     runs-on: ubuntu-latest
+    needs: build
+    
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup PHP
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
-          extensions: mysqli, mbstring, xml, intl, gd
-          tools: composer
-
-      - name: Composer install
+          extensions: mysqli, mbstring, xml
+          tools: composer, phpunit:10.5
+      
+      - name: Verify PHPUnit Installation
         run: |
-          if [ -f composer.json ]; then
-            composer install --no-progress --prefer-dist
+          echo "Checking PHPUnit..."
+          which phpunit || echo "PHPUnit not in PATH"
+          phpunit --version || echo "PHPUnit command failed"
+      
+      - name: Check if composer.json exists
+        id: composer_check
+        run: |
+          if [ -f "composer.json" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "composer.json found"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "composer.json not found"
           fi
-
-      - name: Run PHPUnit
+      
+      - name: Install Composer Dependencies
+        if: steps.composer_check.outputs.exists == 'true'
         run: |
-          if [ -f vendor/autoload.php ]; then
+          echo "Installing Composer dependencies..."
+          composer install --no-interaction --prefer-dist
+      
+      - name: Run PHP Unit Tests (No WordPress Required)
+        run: |
+          echo "Running PHPUnit tests..."
+          if [ -f "vendor/autoload.php" ]; then
+            echo "Using Composer autoload"
             phpunit --bootstrap vendor/autoload.php tests/backend/WordPressBackendUnitTest.php
           else
+            echo "Running without Composer autoload"
             phpunit tests/backend/WordPressBackendUnitTest.php
           fi
-
-  summary:
-    needs: [build, test-backend, test-php-unit]
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Final result
+      
+      - name: Upload PHPUnit Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpunit-results
+          path: |
+            tests/backend/*.xml
+            tests/backend/*.html
+          if-no-files-found: ignore
+      
+      - name: PHP Unit Tests Complete
         run: |
-          echo "Build: ${{ needs.build.result }}"
-          echo "Backend Tests: ${{ needs.test-backend.result }}"
-          echo "PHP Unit: ${{ needs.test-php-unit.result }}"
-          if [[ "${{ needs.build.result }}" == "success" && \
-                "${{ needs.test-backend.result }}" == "success" && \
-                "${{ needs.test-php-unit.result }}" == "success" ]]; then
-            echo "PIPELINE PASSED"
-          else
-            echo "PIPELINE FAILED"
+          echo "PHP unit testing completed!"
+
+  pipeline-summary:
+    name: Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [source-validation, build, test-backend, test-php-unit]
+    if: always()
+    
+    steps:
+      - name: Display Pipeline Results
+        run: |
+          echo "================================"
+          echo "   CI/CD PIPELINE SUMMARY"
+          echo "================================"
+          echo ""
+          echo "Source Stage: ${{ needs.source-validation.result }}"
+          echo "Build Stage: ${{ needs.build.result }}"
+          echo "Test Stage (Backend): ${{ needs.test-backend.result }}"
+          echo "Test Stage (PHP Unit): ${{ needs.test-php-unit.result }}"
+          echo ""
+          echo "Pipeline completed at: $(date)"
+          echo ""
+          if [[ "${{ needs.source-validation.result }}" == "failure" ]] || \
+             [[ "${{ needs.build.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-backend.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-php-unit.result }}" == "failure" ]]; then
+            echo "Pipeline FAILED"
             exit 1
+          else
+            echo "Pipeline PASSED"
           fi

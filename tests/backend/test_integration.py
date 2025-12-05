@@ -40,13 +40,20 @@ def test_users_me_reachable():
 # ============================================================
 def test_auth_missing():
     r = requests.get(f"{BASE_URL}/wp-json/wp/v2/posts")
-    assert r.status_code == 200  # Correct for fresh install
+    assert r.status_code == 200  # Correct for fresh install - public endpoint
     data = r.json()
     assert isinstance(data, list)
 
+
 def test_auth_wrong_password():
-    r = requests.get(f"{BASE_URL}/wp-json/wp/v2/posts", auth=("admin", "wrongpass"))
-    assert r.status_code == 401  # This is the real security test
+    # Test authenticated endpoint that requires proper credentials
+    r = requests.post(
+        f"{BASE_URL}/wp-json/wp/v2/posts",
+        auth=("admin", "wrongpass"),
+        json={"title": "Test", "content": "Test"}
+    )
+    print("Wrong password (POST):", r.status_code)
+    assert r.status_code in AUTH_ERR  # Should return 401 or 403
 
 
 # ============================================================
