@@ -8,9 +8,6 @@ services:
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
-      WORDPRESS_CONFIG_EXTRA: |
-        // Enable proper Basic Auth for REST API in CI
-        add_filter('application_password_is_api_request', '__return_true');
     volumes:
       - wordpress_data:/var/www/html
       - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins
