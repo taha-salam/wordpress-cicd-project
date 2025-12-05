@@ -116,13 +116,13 @@ jobs:
           docker compose exec -T wordpress wp rewrite structure '/%postname%/' --allow-root
           docker compose exec -T wordpress wp rewrite flush --allow-root
           
-          # Enable Apache mod_rewrite
+          # Enable Apache mod_rewrite (if not already enabled)
           echo "Enabling Apache mod_rewrite..."
-          docker compose exec -T wordpress a2enmod rewrite
+          docker compose exec -T wordpress bash -c "a2enmod rewrite 2>/dev/null || true"
           docker compose exec -T wordpress apache2ctl graceful
           
           # Wait for Apache to reload
-          sleep 5
+          sleep 8
       
       - name: Verify WordPress is Running
         run: |
