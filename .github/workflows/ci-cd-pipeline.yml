@@ -119,9 +119,9 @@ jobs:
           # Enable Apache mod_rewrite
           echo "Enabling Apache mod_rewrite..."
           docker compose exec -T wordpress a2enmod rewrite
-          docker compose exec -T wordpress service apache2 restart
+          docker compose exec -T wordpress apache2ctl graceful
           
-          # Wait for Apache to restart
+          # Wait for Apache to reload
           sleep 5
       
       - name: Verify WordPress is Running
