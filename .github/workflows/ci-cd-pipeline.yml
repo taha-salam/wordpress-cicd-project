@@ -32,6 +32,7 @@ jobs:
           echo "Validating project structure..."
           
           [ -d "tests/backend" ] && echo "tests/backend exists" || echo "tests/backend missing"
+          [ -d "tests/frontend" ] && echo "tests/frontend exists" || echo "tests/frontend missing"
           [ -d ".github/workflows" ] && echo ".github/workflows exists" || echo ".github/workflows missing"
           [ -f "docker-compose.yml" ] && echo "docker-compose.yml exists" || echo "docker-compose.yml missing"
           [ -f "requirements.txt" ] && echo "requirements.txt exists" || echo "requirements.txt missing"
@@ -129,7 +130,6 @@ jobs:
       - name: Start WordPress Environment
         run: |
           docker compose up -d
-          echo "Waiting for containers..."
           sleep 40
       
       - name: Install WP-CLI
@@ -142,7 +142,6 @@ jobs:
       
       - name: Configure WordPress
         run: |
-          echo "Installing WordPress..."
           docker compose exec -T wordpress wp core install \
             --url='http://localhost:8000' \
             --title='Test Site' \
@@ -152,24 +151,11 @@ jobs:
             --skip-email \
             --allow-root
           
-          echo "Configuring permalinks..."
           docker compose exec -T wordpress wp rewrite structure '/%postname%/' --allow-root
           docker compose exec -T wordpress wp rewrite flush --allow-root
-          
-          echo "Enabling mod_rewrite..."
           docker compose exec -T wordpress a2enmod rewrite
-          
-          echo "Applying Apache configuration..."
           docker compose restart wordpress
           sleep 10
-          
-          echo "WordPress configuration complete!"
-      
-      - name: Verify REST API
-        run: |
-          echo "Testing REST API..."
-          curl -v http://localhost:8000/wp-json/ 2>&1 | head -20
-          curl -u admin:password http://localhost:8000/wp-json/wp/v2/posts
       
       - name: Run Backend Integration Tests
         run: |
@@ -182,15 +168,6 @@ jobs:
         with:
           name: backend-test-report
           path: backend-report.html
-      
-      - name: Show Logs on Failure
-        if: failure()
-        run: |
-          echo "WordPress Logs:"
-          docker compose logs wordpress | tail -50
-          echo ""
-          echo "MySQL Logs:"
-          docker compose logs db | tail -30
       
       - name: Backend Tests Complete
         run: echo "Backend testing completed!"
@@ -219,10 +196,214 @@ jobs:
       - name: PHP Unit Tests Complete
         run: echo "PHP unit testing completed!"
 
+  test-frontend-security:
+    name: Test Stage - Security Tests (Cypress)
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install Cypress Dependencies
+        working-directory: tests/frontend
+        run: npm install
+      
+      - name: Start WordPress Environment
+        run: |
+          docker compose up -d
+          sleep 40
+      
+      - name: Install WP-CLI
+        run: |
+          docker compose exec -T wordpress bash -c "
+            curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+            chmod +x wp-cli.phar
+            mv wp-cli.phar /usr/local/bin/wp
+          "
+      
+      - name: Configure WordPress
+        run: |
+          docker compose exec -T wordpress wp core install \
+            --url='http://localhost:8000' \
+            --title='Test Site' \
+            --admin_user='admin' \
+            --admin_password='password' \
+            --admin_email='admin@test.com' \
+            --skip-email \
+            --allow-root
+          
+          docker compose exec -T wordpress wp rewrite structure '/%postname%/' --allow-root
+          docker compose exec -T wordpress wp rewrite flush --allow-root
+          docker compose exec -T wordpress a2enmod rewrite
+          docker compose restart wordpress
+          sleep 10
+      
+      - name: Run Cypress Security Tests
+        working-directory: tests/frontend
+        run: |
+          echo "Running security tests..."
+          npx cypress run --spec "cypress/e2e/security_*.cy.js,cypress/e2e/AdditionalSecurityTesting.cy.js" --browser chrome --headless
+      
+      - name: Upload Cypress Screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-security-screenshots
+          path: tests/frontend/cypress/screenshots
+      
+      - name: Upload Cypress Videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-security-videos
+          path: tests/frontend/cypress/videos
+      
+      - name: Security Tests Complete
+        run: echo "Security testing completed!"
+
+  test-frontend-accessibility:
+    name: Test Stage - Accessibility Tests (Cypress)
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install Cypress Dependencies
+        working-directory: tests/frontend
+        run: npm install
+      
+      - name: Start WordPress Environment
+        run: |
+          docker compose up -d
+          sleep 40
+      
+      - name: Install WP-CLI
+        run: |
+          docker compose exec -T wordpress bash -c "
+            curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+            chmod +x wp-cli.phar
+            mv wp-cli.phar /usr/local/bin/wp
+          "
+      
+      - name: Configure WordPress
+        run: |
+          docker compose exec -T wordpress wp core install \
+            --url='http://localhost:8000' \
+            --title='Test Site' \
+            --admin_user='admin' \
+            --admin_password='password' \
+            --admin_email='admin@test.com' \
+            --skip-email \
+            --allow-root
+          
+          docker compose exec -T wordpress wp rewrite structure '/%postname%/' --allow-root
+          docker compose exec -T wordpress wp rewrite flush --allow-root
+          docker compose exec -T wordpress a2enmod rewrite
+          docker compose restart wordpress
+          sleep 10
+      
+      - name: Run Cypress Accessibility Tests
+        working-directory: tests/frontend
+        run: |
+          echo "Running accessibility tests..."
+          npx cypress run --spec "cypress/e2e/accessibility.cy.js" --browser chrome --headless
+      
+      - name: Upload Cypress Screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-accessibility-screenshots
+          path: tests/frontend/cypress/screenshots
+      
+      - name: Upload Cypress Videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-accessibility-videos
+          path: tests/frontend/cypress/videos
+      
+      - name: Accessibility Tests Complete
+        run: echo "Accessibility testing completed!"
+
+  test-performance-k6:
+    name: Test Stage - Performance Tests (K6)
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Install K6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+      
+      - name: Start WordPress Environment
+        run: |
+          docker compose up -d
+          sleep 40
+      
+      - name: Install WP-CLI
+        run: |
+          docker compose exec -T wordpress bash -c "
+            curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+            chmod +x wp-cli.phar
+            mv wp-cli.phar /usr/local/bin/wp
+          "
+      
+      - name: Configure WordPress
+        run: |
+          docker compose exec -T wordpress wp core install \
+            --url='http://localhost:8000' \
+            --title='Test Site' \
+            --admin_user='admin' \
+            --admin_password='password' \
+            --admin_email='admin@test.com' \
+            --skip-email \
+            --allow-root
+          
+          docker compose exec -T wordpress wp rewrite structure '/%postname%/' --allow-root
+          docker compose exec -T wordpress wp rewrite flush --allow-root
+          docker compose exec -T wordpress a2enmod rewrite
+          docker compose restart wordpress
+          sleep 10
+      
+      - name: Run K6 Performance Tests
+        run: |
+          echo "Running K6 performance tests..."
+          k6 run tests/frontend/k6/performance_test.js
+      
+      - name: Upload Performance Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-performance-results
+          path: performance-summary.json
+      
+      - name: Performance Tests Complete
+        run: echo "Performance testing completed!"
+
   pipeline-summary:
     name: Pipeline Summary
     runs-on: ubuntu-latest
-    needs: [source-validation, build, test-backend, test-php-unit]
+    needs: [source-validation, build, test-backend, test-php-unit, test-frontend-security, test-frontend-accessibility, test-performance-k6]
     if: always()
     
     steps:
@@ -236,5 +417,8 @@ jobs:
           echo "Build Stage: ${{ needs.build.result }}"
           echo "Test Stage (Backend): ${{ needs.test-backend.result }}"
           echo "Test Stage (PHP Unit): ${{ needs.test-php-unit.result }}"
+          echo "Test Stage (Security): ${{ needs.test-frontend-security.result }}"
+          echo "Test Stage (Accessibility): ${{ needs.test-frontend-accessibility.result }}"
+          echo "Test Stage (Performance): ${{ needs.test-performance-k6.result }}"
           echo ""
           echo "Pipeline completed at: $(date)"

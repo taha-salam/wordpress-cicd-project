@@ -1,0 +1,16 @@
+{
+  "name": "wordpress-frontend-tests",
+  "version": "1.0.0",
+  "description": "Frontend non-functional tests for WordPress",
+  "scripts": {
+    "cy:run": "cypress run",
+    "cy:open": "cypress open",
+    "test:cypress": "cypress run --browser chrome --headless",
+    "test:k6": "k6 run k6/performance_test.js"
+  },
+  "devDependencies": {
+    "cypress": "^13.6.0",
+    "cypress-axe": "^1.5.0",
+    "axe-core": "^4.8.0"
+  }
+}
