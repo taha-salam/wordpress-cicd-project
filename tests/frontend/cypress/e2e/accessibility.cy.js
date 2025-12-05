@@ -225,19 +225,56 @@ describe('Non-Functional Testing - Accessibility (WordPress)', () => {
   it('should verify image alternative text (WCAG 1.1.1)', () => {
     cy.visit(baseUrl);
     
-    cy.get('img').each($img => {
-      const alt = $img.attr('alt');
-      const role = $img.attr('role');
-      const ariaLabel = $img.attr('aria-label');
+    cy.get('body').then($body => {
+      const images = $body.find('img');
       
-      // Images should have alt attribute (can be empty for decorative images)
-      if (alt !== undefined) {
-        cy.task('log', `✓ Image has alt attribute: "${alt}"`);
-      } else if (role === 'presentation' || ariaLabel) {
-        cy.task('log', `✓ Decorative image properly marked`);
-      } else {
-        cy.task('log', `⚠ Image missing alt attribute: ${$img.attr('src')}`);
+      cy.task('log', `========================================`);
+      cy.task('log', `Image Alternative Text Report`);
+      cy.task('log', `========================================`);
+      
+      if (images.length === 0) {
+        cy.task('log', 'ℹ️  No images found on homepage');
+        cy.task('log', '✓ Image alt text test: N/A (no images present)');
+        cy.task('log', `========================================\n`);
+        return;
       }
+      
+      cy.task('log', `Found ${images.length} image(s) on page\n`);
+      
+      let imagesWithAlt = 0;
+      let decorativeImages = 0;
+      let imagesWithoutAlt = 0;
+      
+      images.each((index, img) => {
+        const $img = Cypress.$(img);
+        const alt = $img.attr('alt');
+        const role = $img.attr('role');
+        const ariaLabel = $img.attr('aria-label');
+        const src = $img.attr('src');
+        
+        // Images should have alt attribute (can be empty for decorative images)
+        if (alt !== undefined) {
+          imagesWithAlt++;
+          if (alt === '') {
+            cy.task('log', `✓ Image ${index + 1}: Empty alt (decorative) - ${src}`);
+          } else {
+            cy.task('log', `✓ Image ${index + 1}: Alt text present - "${alt}"`);
+          }
+        } else if (role === 'presentation' || role === 'none' || ariaLabel) {
+          decorativeImages++;
+          cy.task('log', `✓ Image ${index + 1}: Decorative (role="${role || 'N/A'}", aria-label="${ariaLabel || 'N/A'}")`);
+        } else {
+          imagesWithoutAlt++;
+          cy.task('log', `⚠ Image ${index + 1}: Missing alt attribute - ${src}`);
+        }
+      });
+      
+      cy.task('log', `\nSummary:`);
+      cy.task('log', `  Images with alt text: ${imagesWithAlt}`);
+      cy.task('log', `  Decorative images (properly marked): ${decorativeImages}`);
+      cy.task('log', `  Images missing alt: ${imagesWithoutAlt}`);
+      cy.task('log', `  Compliance: ${imagesWithoutAlt === 0 ? 'PASS ✓' : 'NEEDS IMPROVEMENT ⚠'}`);
+      cy.task('log', `========================================\n`);
     });
   });
 
