@@ -40,14 +40,19 @@ def test_users_me_reachable():
 # ============================================================
 def test_auth_missing():
     r = requests.get(f"{BASE_URL}/wp-json/wp/v2/posts")
-    print("Missing auth:", r.status_code)
-    assert r.status_code in AUTH_ERR + NOT_FOUND
+    print("Missing auth status:", r.status_code)
+    # Fresh WP install returns 200 + [] if no public posts
+    # Or 401 if visibility is restricted
+    assert r.status_code in [200, 401, 403]
+    if r.status_code == 200:
+        assert r.json() == [] or len(r.json()) == 0
 
 
 def test_auth_wrong_password():
     r = requests.get(f"{BASE_URL}/wp-json/wp/v2/posts", auth=("admin", "wrongpass"))
-    print("Wrong password:", r.status_code)
-    assert r.status_code in AUTH_ERR + NOT_FOUND
+    print("Wrong password status:", r.status_code)
+    # Wrong credentials must return 401
+    assert r.status_code == 401
 
 
 # ============================================================
