@@ -40,15 +40,23 @@ describe('WordPress Pages Management', () => {
         cy.get('body').then(($body) => {
             // Try block editor title input (most common)
             if ($body.find('.editor-post-title__input, [aria-label="Add title"]').length > 0) {
-                cy.get('.editor-post-title__input, [aria-label="Add title"]').first().clear({ force: true }).type(title, { force: true });
+                cy.get('.editor-post-title__input, [aria-label="Add title"]').first()
+                    .should('be.visible')
+                    .clear({ force: true })
+                    .type(title, { force: true });
             } 
             // Try classic editor
             else if ($body.find('#title').length > 0) {
-                cy.get('#title').clear().type(title);
+                cy.get('#title').should('be.visible').clear().type(title);
             }
             // Try any h1 that's editable
             else if ($body.find('h1[contenteditable="true"]').length > 0) {
-                cy.get('h1[contenteditable="true"]').first().clear({ force: true }).type(title, { force: true });
+                cy.get('h1[contenteditable="true"]').first()
+                    .should('be.visible')
+                    .clear({ force: true })
+                    .type(title, { force: true });
+            } else {
+                cy.log('No title input found - may already have content');
             }
         });
         cy.wait(1000);
@@ -211,7 +219,8 @@ describe('WordPress Pages Management', () => {
 
         cy.get('body').then(($body) => {
             if ($body.find('#the-list tr').length > 0) {
-                cy.get('#the-list tr').first().find('.row-title, .page-title, strong a').first().click({ force: true });
+                // FIXED: Find the actual link element, not the th element
+                cy.get('#the-list tr').first().find('a.row-title, td.title a, td.post-title a, strong a').first().click({ force: true });
 
                 dismissWelcomeGuide();
                 waitForEditor();
