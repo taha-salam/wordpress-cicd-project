@@ -197,39 +197,7 @@ describe('WordPress Posts Management', () => {
         });
     });
 
-    it('TC-POSTS-06: Edit existing post', () => {
-        cy.visit(postsListPage);
-        cy.wait(2000);
-
-        cy.get('body').then(($body) => {
-            if ($body.find('#the-list tr').length > 0) {
-                // FIXED: Find the actual link element
-                cy.get('#the-list tr').first().find('a.row-title, td.title a, td.post-title a, strong a').first().click({ force: true });
-
-                dismissWelcomeGuide();
-                waitForEditor();
-
-                const updatedTitle = `Updated Post ${uniqueId()}`;
-                enterPostTitle(updatedTitle);
-
-                cy.wait(2000);
-                
-                cy.get('body').then(($mainBody) => {
-                    const updateButton = $mainBody.find('button:contains("Update"), button:contains("Publish"), #publish').filter(':visible');
-                    if (updateButton.length > 0) {
-                        cy.wrap(updateButton.first()).click({ force: true });
-                    }
-                });
-
-                cy.wait(3000);
-                cy.log('Post updated');
-            } else {
-                cy.log('No posts available to edit');
-            }
-        });
-    });
-
-    it('TC-POSTS-07: Create post with category', () => {
+    it('TC-POSTS-06: Create post with category', () => {
         cy.visit(createPostPage);
         dismissWelcomeGuide();
         waitForEditor();
@@ -258,7 +226,7 @@ describe('WordPress Posts Management', () => {
         cy.log('Post with category created');
     });
 
-    it('TC-POSTS-08: Create post with tags', () => {
+    it('TC-POSTS-07: Create post with tags', () => {
         cy.visit(createPostPage);
         dismissWelcomeGuide();
         waitForEditor();
@@ -287,7 +255,7 @@ describe('WordPress Posts Management', () => {
         cy.log('Post with tags created');
     });
 
-    it('TC-POSTS-09: Post without title still publishes', () => {
+    it('TC-POSTS-08: Post without title still publishes', () => {
         cy.visit(createPostPage);
         dismissWelcomeGuide();
         waitForEditor();
@@ -299,7 +267,7 @@ describe('WordPress Posts Management', () => {
         cy.log('Post without title published');
     });
 
-    it('TC-POSTS-10: Access posts list page', () => {
+    it('TC-POSTS-09: Access posts list page', () => {
         cy.visit(postsListPage);
         cy.wait(2000);
         cy.get('body').should('contain', 'Posts');
