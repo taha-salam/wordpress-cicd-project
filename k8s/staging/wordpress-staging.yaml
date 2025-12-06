@@ -18,7 +18,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: wp-pvc
+  name: wordpress-pvc
   namespace: wordpress-staging
 spec:
   accessModes:
@@ -104,12 +104,12 @@ spec:
         - name: WORDPRESS_DB_NAME
           value: wordpress
         volumeMounts:
-        - name: www
+        - name: data
           mountPath: /var/www/html
       volumes:
-      - name: www
+      - name: data
         persistentVolumeClaim:
-          claimName: wp-pvc
+          claimName: wordpress-pvc
 ---
 apiVersion: v1
 kind: Service
