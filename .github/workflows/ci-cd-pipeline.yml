@@ -471,8 +471,8 @@ jobs:
       - name: Performance Tests Complete
         run: echo "Performance testing completed!"
 
-    staging-deploy-argocd:
-    name: "Staging Stage - Deploy to Argo CD (GitOps)"
+  staging-deploy-argocd:
+    name: Staging Stage - Deploy to Argo CD (GitOps)
     runs-on: ubuntu-latest
     needs:
       - source-validation
@@ -480,7 +480,7 @@ jobs:
       - test-backend
       - test-php-unit
       - test-frontend-security
-      - test-frontend-accessibility   # ← you were missing this one
+      - test-frontend-accessibility
       - test-frontend-functional
       - test-performance-k6
     if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
@@ -508,7 +508,15 @@ jobs:
   pipeline-summary:
     name: Pipeline Summary
     runs-on: ubuntu-latest
-    needs: [source-validation, build, test-backend, test-php-unit, test-frontend-security, test-frontend-accessibility, test-frontend-functional, test-performance-k6]
+    needs: 
+      - source-validation
+      - build
+      - test-backend
+      - test-php-unit
+      - test-frontend-security
+      - test-frontend-accessibility
+      - test-frontend-functional
+      - test-performance-k6
     if: always()
     
     steps:
