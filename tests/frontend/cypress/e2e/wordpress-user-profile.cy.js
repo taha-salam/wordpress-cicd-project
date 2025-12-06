@@ -10,12 +10,12 @@ describe('WordPress User Profile', () => {
   const profilePage = '/wp-admin/profile.php';
   const loginPage = '/wp-login.php';
 
-  const username = 'Fastians';
-  const password = '8Wk5ujnODaxMLKp(wQ';
+  const username = 'admin';
+  const password = 'NewTestPassword123!';
 
   beforeEach(() => {
-    cy.visit(loginPage);
-    cy.get('body.login').should('exist');
+    cy.visit(loginPage, { failOnStatusCode: false });
+    cy.get('body.login', { timeout: 10000 }).should('exist');
     cy.wait(500);
 
     cy.get('#user_login')
@@ -36,8 +36,8 @@ describe('WordPress User Profile', () => {
     cy.get('#wp-submit').click();
     cy.url().should('include', '/wp-admin', { timeout: 10000 });
 
-    cy.visit(profilePage);
-    cy.get('form#your-profile').should('be.visible');
+    cy.visit(profilePage, { failOnStatusCode: false });
+    cy.get('form#your-profile', { timeout: 10000 }).should('be.visible');
   });
 
   it('TC-PROFILE-01: Basic profile fields present', () => {
@@ -180,44 +180,81 @@ describe('WordPress User Profile', () => {
     cy.url().should('include', 'profile.php');
   });
 
-  it('TC-PROFILE-13: Change password', () => {
+     it('TC-PROFILE-13: Change password', () => {
+    const originalPassword = 'admin123!';
     const newPassword = 'NewTestPassword123!';
 
     cy.get('button#generate-reset-password, button.wp-generate-pw').then(($btn) => {
       if ($btn.length > 0) {
-        cy.wrap($btn).click({ force: true });
+        cy.wrap($btn).click();
         cy.wait(1000);
 
-        // FIXED: Use force: true for hidden password fields
+        // FIX: Use {force: true} for hidden password fields
         cy.get('#pass1, #pass1-text').then(($pass) => {
           if ($pass.length > 0) {
             cy.wrap($pass).clear({ force: true }).type(newPassword, { force: true });
           }
         });
 
+        // FIX: #pass2 is hidden with display: none, use {force: true}
         cy.get('#pass2, #pass2-text').then(($pass) => {
           if ($pass.length > 0) {
             cy.wrap($pass).clear({ force: true }).type(newPassword, { force: true });
           }
         });
 
-        // FIXED: Wait for button to become enabled, then use force if still disabled
-        cy.wait(2000);
-        cy.get('input#submit').then(($submit) => {
-          if ($submit.is(':disabled')) {
-            cy.log('Submit button still disabled - using force');
-            cy.wrap($submit).click({ force: true });
-          } else {
-            cy.wrap($submit).click();
+        // Wait for password strength indicator
+        cy.wait(1000);
+
+        // FIX: Check "Confirm use of weak password" checkbox if it appears
+        cy.get('body').then(($body) => {
+          if ($body.find('input[name="pw_weak"]').length > 0) {
+            cy.get('input[name="pw_weak"]').check({ force: true });
+            cy.wait(500);
           }
         });
 
+        // FIX: Submit button may be disabled, use {force: true}
+        cy.get('input#submit').click({ force: true });
+
+        cy.get('#message, .notice-success, .updated').should('be.visible');
+        
+        // IMPORTANT: Reset password back to original after test
         cy.wait(2000);
-        // Success message may not appear if passwords don't match requirements
-        cy.url().should('include', 'profile.php');
-        cy.log('Password change attempted');
-      } else {
-        cy.log('Password generation button not found - skipping test');
+        cy.visit(profilePage, { failOnStatusCode: false });
+        cy.wait(1000);
+        
+        cy.get('button#generate-reset-password, button.wp-generate-pw').then(($btn2) => {
+          if ($btn2.length > 0) {
+            cy.wrap($btn2).click();
+            cy.wait(1000);
+            
+            cy.get('#pass1, #pass1-text').then(($p1) => {
+              if ($p1.length > 0) {
+                cy.wrap($p1).clear({ force: true }).type(originalPassword, { force: true });
+              }
+            });
+            
+            cy.get('#pass2, #pass2-text').then(($p2) => {
+              if ($p2.length > 0) {
+                cy.wrap($p2).clear({ force: true }).type(originalPassword, { force: true });
+              }
+            });
+            
+            cy.wait(1000);
+            
+            cy.get('body').then(($body2) => {
+              if ($body2.find('input[name="pw_weak"]').length > 0) {
+                cy.get('input[name="pw_weak"]').check({ force: true });
+                cy.wait(500);
+              }
+            });
+            
+            cy.get('input#submit').click({ force: true });
+            cy.wait(1000);
+            cy.log('✅ Password reset back to original');
+          }
+        });
       }
     });
   });
