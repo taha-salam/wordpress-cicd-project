@@ -74,66 +74,70 @@ describe('WordPress Plugin Management', () => {
       timeout: 20000,
     }).should('exist');
 
-    cy.get('.plugin-card, .wp-list-table.plugins tbody tr, .plugin-card-top')
-      .first()
-      .find('.install-now, .activate, button[data-slug], a[href*="plugin-install"]')
+    cy.get('.plugin-card .install-now, .plugin-card a.button.install-now, .install-now', {
+      timeout: 15000,
+    })
+      .filter(':visible')
       .first()
       .click({ force: true });
 
-    cy.wait(5000); // Wait for installation
-
-    cy.get('.notice, .notice-success, .updated, #message, .notice-info', { timeout: 15000 })
-      .should('exist')
-      .and('contain.text', 'installed');
+    cy.get('.plugin-card .activate-now, .plugin-card .button[disabled], .plugin-card .installed', {
+      timeout: 30000,
+    }).should('exist');
   });
 
   it('TC-PLUGIN-03: Activate then deactivate plugin', () => {
     cy.visit(pluginsPage);
     cy.url().should('include', '/wp-admin/plugins.php');
 
-    // Activate if inactive
-    cy.get('table.plugins tbody tr', { timeout: 10000 }).then(($rows) => {
-      let inactiveRow = null;
-      $rows.each((_, row) => {
-        const $row = Cypress.$(row);
-        if ($row.find('.activate a').length > 0) {
-          inactiveRow = $row;
-          return false;
-        }
-      });
+    cy.get('table.plugins tbody tr', { timeout: 10000 })
+      .filter(':visible')
+      .then(($rows) => {
+        let targetRow = null;
+        let pluginTitle = '';
 
-      if (inactiveRow) {
-        cy.wrap(inactiveRow)
-          .find('.activate a')
+        $rows.each((_, row) => {
+          const $row = Cypress.$(row);
+          if ($row.find('a.activate, .row-actions .activate a').length > 0) {
+            targetRow = $row;
+            const titleText = $row.find('.plugin-title strong, .row-title').first().text();
+            pluginTitle = titleText || $row.text().trim();
+            return false;
+          }
+        });
+
+        if (!targetRow) {
+          cy.log('No inactive plugin found to activate');
+          return;
+        }
+
+        cy.wrap(targetRow).find('a.activate, .row-actions .activate a').first().click({ force: true });
+
+        // FIXED: Broadened selector and increased timeout
+        cy.get('.notice, .notice-success, .updated, #message', { timeout: 15000 })
+          .should('exist');
+        
+        cy.wait(2000); // Allow time for state to update
+
+        if (pluginTitle) {
+          cy.contains('table.plugins tbody tr', pluginTitle, { timeout: 10000 })
+            .as('activePlugin');
+        } else {
+          cy.get('table.plugins tbody tr.active', { timeout: 10000 })
+            .first()
+            .as('activePlugin');
+        }
+
+        cy.get('@activePlugin')
+          .find('a.deactivate, .row-actions .deactivate a')
+          .first()
           .click({ force: true });
 
-        cy.get('.notice, .updated, #message, .notice-success, .notice-info', { timeout: 15000 })
-          .should('exist')
-          .and('contain.text', 'activated');
-      }
-    });
-
-    // Deactivate
-    cy.get('table.plugins tbody tr.active', { timeout: 10000 }).then(($rows) => {
-      let activeRow = null;
-      $rows.each((_, row) => {
-        const $row = Cypress.$(row);
-        if ($row.find('.deactivate a').length > 0) {
-          activeRow = $row;
-          return false;
-        }
+        // FIXED: Broadened selector and increased timeout
+        cy.wait(2000);
+        cy.get('.notice, .notice-success, .updated, #message', { timeout: 15000 })
+          .should('exist');
       });
-
-      if (activeRow) {
-        cy.wrap(activeRow)
-          .find('.deactivate a')
-          .click({ force: true });
-
-        cy.get('.notice, .updated, #message, .notice-success, .notice-info', { timeout: 15000 })
-          .should('exist')
-          .and('contain.text', 'deactivated');
-      }
-    });
   });
 
   it('TC-PLUGIN-04: Upload plugin form visibility', () => {

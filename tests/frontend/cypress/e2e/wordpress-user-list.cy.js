@@ -48,7 +48,7 @@ describe('WordPress User List', () => {
 
     it('TC-USERLIST-02: Display user row actions on hover', () => {
         cy.get('#the-list tr').first().within(() => {
-            cy.get('.column-username').trigger('mouseenter'); // Changed from .row-title
+            cy.get('.column-username').trigger('mouseenter');
             cy.get('.row-actions').should('be.visible');
             cy.get('.row-actions').within(() => {
                 cy.contains('Edit').should('be.visible');
@@ -80,8 +80,16 @@ describe('WordPress User List', () => {
             cy.get('.row-actions a').contains('Edit').click({ force: true });
         });
 
-        // Flexible: could be user-edit or profile
-        cy.url().should('match', /user-edit\.php|profile\.php/);
+        // FIXED: Accept both user-edit.php and profile.php URLs
+        cy.wait(2000);
+        cy.url().then((url) => {
+            if (url.includes('user-edit.php') || url.includes('profile.php')) {
+                cy.log('Successfully navigated to user edit/profile page');
+            } else {
+                throw new Error('Did not navigate to expected user edit page');
+            }
+        });
+        
         cy.get('form#your-profile').should('be.visible');
     });
 
