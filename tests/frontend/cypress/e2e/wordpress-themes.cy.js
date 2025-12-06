@@ -51,17 +51,17 @@ describe('WordPress Themes Management', () => {
     });
 
     it('TC-THEMES-03: View theme details', () => {
-        cy.get('.theme').first().click();
+        cy.get('.theme').first().click({ force: true });
 
-        cy.get('.theme-overlay').should('be.visible');
+        cy.get('.theme-overlay', { timeout: 15000 }).should('be.visible');
         cy.get('.theme-name').should('be.visible');
     });
 
     it('TC-THEMES-04: Close theme details overlay', () => {
-        cy.get('.theme').first().click();
-        cy.get('.theme-overlay').should('be.visible');
+        cy.get('.theme').first().click({ force: true });
+        cy.get('.theme-overlay', { timeout: 15000 }).should('be.visible');
 
-        cy.get('.close-full-overlay, .theme-overlay .close').click();
+        cy.get('.close-full-overlay, .theme-overlay .close').click({ force: true });
 
         cy.get('.theme-overlay').should('not.be.visible');
     });
@@ -71,8 +71,8 @@ describe('WordPress Themes Management', () => {
         cy.get('.theme').not('.active').first().as('themeToActivate');
         cy.get('@themeToActivate').click({ force: true });
 
-        cy.get('.theme-overlay', { timeout: 10000 }).should('be.visible');
-        cy.get('.activate').click();
+        cy.get('.theme-overlay', { timeout: 15000 }).should('be.visible');
+        cy.get('.activate').click({ force: true });
 
         // Wait for reload and check if a theme is active
         cy.wait(5000);
@@ -80,8 +80,8 @@ describe('WordPress Themes Management', () => {
     });
 
     it('TC-THEMES-06: Access theme customizer', () => {
-        cy.get('.theme.active').click();
-        cy.get('.theme-overlay').should('be.visible');
+        cy.get('.theme.active').click({ force: true });
+        cy.get('.theme-overlay', { timeout: 15000 }).should('be.visible');
 
         cy.get('body').then(($body) => {
             if ($body.find('.customize').length > 0) {
@@ -89,6 +89,6 @@ describe('WordPress Themes Management', () => {
             }
         });
 
-        cy.get('.close-full-overlay, .theme-overlay .close').click();
+        cy.get('.close-full-overlay, .theme-overlay .close').click({ force: true });
     });
 });

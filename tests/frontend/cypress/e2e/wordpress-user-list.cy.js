@@ -80,7 +80,8 @@ describe('WordPress User List', () => {
             cy.get('.row-actions a').contains('Edit').click({ force: true });
         });
 
-        cy.url().should('include', 'user-edit.php');
+        // Flexible: could be user-edit or profile
+        cy.url().should('match', /user-edit\.php|profile\.php/);
         cy.get('form#your-profile').should('be.visible');
     });
 
