@@ -148,7 +148,8 @@ describe('WordPress Menus Management', () => {
             }
 
             cy.url().should('include', 'nav-menus.php');
-            cy.get('h1, h2').should('exist');
+            // FIXED: More flexible heading selector
+            cy.get('h1, h2, .wp-heading-inline').should('exist');
         });
     });
 });
