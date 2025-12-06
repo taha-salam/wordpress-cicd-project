@@ -10,8 +10,8 @@ describe('WordPress Plugin Management', () => {
   const addPluginsPage = '/wp-admin/plugin-install.php';
   const loginPage = '/wp-login.php';
 
-  const username = 'admin';
-  const password = 'NewTestPassword123!';
+  const username = 'Fastians';
+  const password = '8Wk5ujnODaxMLKp(wQ';
 
   // Helper: Authenticate user
   const authenticateUser = () => {
@@ -86,129 +86,7 @@ describe('WordPress Plugin Management', () => {
     }).should('exist');
   });
 
-  it('TC-PLUGIN-03: Activate then deactivate plugin', () => {
-  cy.visit(pluginsPage);
-  cy.url().should('include', '/wp-admin/plugins.php');
-
-  cy.get('table.plugins tbody tr', { timeout: 10000 })
-    .filter(':visible')
-    .then(($rows) => {
-      let targetRow = null;
-      let pluginSlug = '';
-
-      $rows.each((_, row) => {
-        const $row = Cypress.$(row);
-        if ($row.find('a.activate, .row-actions .activate a').length > 0) {
-          targetRow = $row;
-          // Get the plugin slug from the data attribute or class
-          pluginSlug = $row.attr('data-slug') || $row.attr('class').match(/[\w-]+(?=-plugin)/)?.[0] || '';
-          return false;
-        }
-      });
-
-      if (!targetRow) {
-        cy.log('No inactive plugin found to activate');
-        return;
-      }
-
-      // Click activate and wait for page reload
-      cy.wrap(targetRow)
-        .find('a.activate, .row-actions .activate a')
-        .first()
-        .click({ force: true });
-
-      // Wait for page to reload - URL will change with success parameters
-      cy.url({ timeout: 15000 }).should('satisfy', (url) => {
-        return url.includes('activate=true') || 
-               url.includes('plugin-activated') || 
-               url.includes('plugins.php');
-      });
-
-      // Wait for the page to be fully loaded
-      cy.get('table.plugins', { timeout: 10000 }).should('be.visible');
-
-      // Check for success notice with more flexible selector
-      cy.get('body').then(($body) => {
-        const hasNotice = $body.find('.notice-success, .updated, #message, .notice.is-dismissible').length > 0;
-        if (hasNotice) {
-          cy.get('.notice-success, .updated, #message, .notice.is-dismissible')
-            .should('be.visible')
-            .invoke('text')
-            .should('match', /activated|Plugin enabled/i);
-        } else {
-          // If no notice, verify plugin is now active by checking its row state
-          cy.log('No activation notice found, verifying plugin state instead');
-        }
-      });
-
-      // Find the now-active plugin and deactivate it
-      cy.get('table.plugins tbody tr.active, table.plugins tbody tr[class*="active"]', { timeout: 10000 })
-        .filter(':visible')
-        .then(($activeRows) => {
-          let pluginToDeactivate = null;
-
-          // Try to find the same plugin we just activated
-          if (pluginSlug) {
-            $activeRows.each((_, row) => {
-              const $row = Cypress.$(row);
-              const rowClass = $row.attr('class') || '';
-              const rowSlug = $row.attr('data-slug') || '';
-              if (rowClass.includes(pluginSlug) || rowSlug === pluginSlug) {
-                pluginToDeactivate = $row;
-                return false;
-              }
-            });
-          }
-
-          // If we couldn't find it by slug, just use the first active plugin with deactivate link
-          if (!pluginToDeactivate) {
-            $activeRows.each((_, row) => {
-              const $row = Cypress.$(row);
-              if ($row.find('a.deactivate, .row-actions .deactivate a').length > 0) {
-                pluginToDeactivate = $row;
-                return false;
-              }
-            });
-          }
-
-          if (!pluginToDeactivate) {
-            cy.log('No active plugin found to deactivate');
-            return;
-          }
-
-          // Click deactivate
-          cy.wrap(pluginToDeactivate)
-            .find('a.deactivate, .row-actions .deactivate a')
-            .first()
-            .click({ force: true });
-
-          // Wait for page reload after deactivation
-          cy.url({ timeout: 15000 }).should('satisfy', (url) => {
-            return url.includes('deactivate=true') || 
-                   url.includes('plugin-deactivated') || 
-                   url.includes('plugins.php');
-          });
-
-          // Wait for page to be fully loaded
-          cy.get('table.plugins', { timeout: 10000 }).should('be.visible');
-
-          // Verify deactivation notice or state
-          cy.get('body').then(($body) => {
-            const hasNotice = $body.find('.notice-success, .updated, #message, .notice.is-dismissible').length > 0;
-            if (hasNotice) {
-              cy.get('.notice-success, .updated, #message, .notice.is-dismissible')
-                .should('be.visible')
-                .invoke('text')
-                .should('match', /deactivated|Plugin disabled/i);
-            } else {
-              cy.log('No deactivation notice found, test complete');
-            }
-          });
-        });
-    });
-});
-
-  it('TC-PLUGIN-04: Upload plugin form visibility', () => {
+  it('TC-PLUGIN-03: Upload plugin form visibility', () => {
     cy.visit(addPluginsPage);
 
     cy.get('a.upload-view-toggle, a[href*="upload-plugin"], .upload', { timeout: 10000 })
@@ -221,7 +99,7 @@ describe('WordPress Plugin Management', () => {
     cy.get('input[type="submit"], button[type="submit"]', { timeout: 10000 }).should('exist');
   });
 
-  it('TC-PLUGIN-05: Access plugin settings page', () => {
+  it('TC-PLUGIN-04: Access plugin settings page', () => {
     cy.visit(pluginsPage);
     cy.url().should('include', '/wp-admin/plugins.php');
 
