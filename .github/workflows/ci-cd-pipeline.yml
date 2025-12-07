@@ -471,6 +471,9 @@ jobs:
       - name: Performance Tests Complete
         run: echo "Performance testing completed!"
 
+  # =====================================================
+  # STAGE 4: REAL ARGO CD DEPLOYMENT (TRIGGERS ACTUAL DEPLOY)
+  # =====================================================
   staging-deploy-argocd:
     name: Staging Stage - Deploy to Argo CD (GitOps)
     runs-on: ubuntu-latest
@@ -483,27 +486,71 @@ jobs:
       - test-frontend-accessibility
       - test-frontend-functional
       - test-performance-k6
-    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    if: >-
+      ${{ always() &&
+          !contains(needs.*.result, 'failure') &&
+          !contains(needs.*.result, 'cancelled') &&
+          github.ref == 'refs/heads/main' }}
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Code (with full history + push ability)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Staging Deploy via Argo CD
+      - name: Configure Git User
         run: |
-          echo "=================================================="
-          echo "   STAGING DEPLOYMENT VIA ARGO CD - AUTOMATIC    "
-          echo "=================================================="
-          echo "All tests PASSED → Deploying to staging via Argo CD"
-          echo "Argo CD is watching main branch with syncPolicy: automated"
-          echo "Application: wordpress-staging"
-          echo "Status: Healthy + Synced (see local Argo CD UI)"
-          echo "Staging URL: http://localhost:30080"
-          echo "Access: kubectl port-forward svc/wordpress-service 30080:80 -n wordpress-staging"
-          echo ""
-          echo "This job proves: DEPLOY ONLY AFTER SUCCESSFUL TESTS"
-          echo "Part 4 of project requirement - 100% COMPLETE"
-          echo "=================================================="
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+      - name: Create/Update Deployment Trigger Manifest
+        run: |
+          mkdir -p deploy/staging
+          
+          cat > deploy/staging/wordpress-deployment-trigger.yaml << EOF
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: wordpress-deploy-trigger
+            namespace: wordpress-staging
+            labels:
+              app.kubernetes.io/name: wordpress
+              app.kubernetes.io/instance: staging
+              deploy-time: "$(date -u +%Y%m%d-%H%M%S)"
+          data:
+            deployedAt: "$(date -u +"%Y-%m-%d %H:%M:%SZ")"
+            commit: "${{ github.sha }}"
+            commitShort: "${{ github.sha_short }}"
+            branch: "main"
+            triggeredBy: "${{ github.actor }}"
+            runId: "${{ github.run_id }}"
+            runNumber: "${{ github.run_number }}"
+            pipelineUrl: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          EOF
+
+          echo "Created/updated deploy/staging/wordpress-deployment-trigger.yaml"
+          cat deploy/staging/wordpress-deployment-trigger.yaml
+
+      - name: Commit & Push to Trigger Argo CD Sync
+        run: |
+          git add deploy/staging/wordpress-deployment-trigger.yaml
+          
+          git commit -m "chore: trigger staging deployment via Argo CD [skip ci]
+
+          All tests passed
+          Commit: ${{ github.sha }}
+          Run: #${{ github.run_number }}" || echo "No changes to commit"
+          
+          git push origin main
+          
+          echo "Pushed manifest → Argo CD will now auto-sync and deploy!"
+
+      - name: Success Message
+        run: |
+          echo "STAGING DEPLOYMENT SUCCESSFULLY TRIGGERED!"
+          echo "Argo CD is syncing wordpress-staging application"
+          echo "Check status: https://localhost:8080/applications/wordpress-staging (after port-forward)"
 
   pipeline-summary:
     name: Pipeline Summary
@@ -517,6 +564,7 @@ jobs:
       - test-frontend-accessibility
       - test-frontend-functional
       - test-performance-k6
+      - staging-deploy-argocd
     if: always()
     
     steps:
@@ -534,5 +582,6 @@ jobs:
           echo "Test Stage (Accessibility): ${{ needs.test-frontend-accessibility.result }}"
           echo "Test Stage (Functional): ${{ needs.test-frontend-functional.result }}"
           echo "Test Stage (Performance): ${{ needs.test-performance-k6.result }}"
+          echo "Staging Deploy: ${{ needs.staging-deploy-argocd.result }}"
           echo ""
           echo "Pipeline completed at: $(date)"
