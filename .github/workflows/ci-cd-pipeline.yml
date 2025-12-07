@@ -97,12 +97,6 @@ jobs:
           sleep 10
           
           echo "WordPress configured successfully!"
-      
-      - name: Install Composer Dependencies (Sentry SDK)
-        run: |
-          docker compose exec -T wordpress bash -c "apt-get update && apt-get install -y unzip git"
-          docker compose exec -T wordpress bash -c "curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer"
-          docker compose exec -T wordpress composer install --no-dev --optimize-autoloader --no-interaction
 
       - name: Verify WordPress is Running
         run: |
