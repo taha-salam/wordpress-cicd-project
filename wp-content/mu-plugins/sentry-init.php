@@ -1,17 +1,15 @@
 <?php
 /**
  * Plugin Name: Sentry Monitoring (PHP)
- * Description: Initializes Sentry for PHP error monitoring
+ * Description: Safe Sentry initialization for SQE project
  */
-
 if ( file_exists( __DIR__ . '/../../vendor/autoload.php' ) ) {
     require_once __DIR__ . '/../../vendor/autoload.php';
-
-    $dsn = getenv('SENTRY_DSN_PHP');
-    if ( $dsn && trim($dsn) && strpos($dsn, 'your-php-dsn') === false ) {
+    $dsn = getenv('SENTRY_DSN_PHP') ?: false;
+    if ( $dsn && $dsn !== 'https://your-php-dsn@...' ) {
         \Sentry\init([
             'dsn'         => $dsn,
-            'environment' => getenv('WP_ENV') ?: 'development',
+            'environment' => 'staging',
             'release'     => 'wordpress@' . get_bloginfo('version'),
             'traces_sample_rate' => 1.0,
         ]);
