@@ -552,7 +552,24 @@ jobs:
           echo "STAGING DEPLOYMENT SUCCESSFULLY TRIGGERED!"
           echo "Argo CD is syncing wordpress-staging application"
           echo "Check status: https://localhost:8080/applications/wordpress-staging (after port-forward)"
+        
+            - name: Notify New Relic of Deployment
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
+        run: |
+          curl -X POST "https://api.newrelic.com/v2/applications.json" \
+          -H "X-Api-Key:${NEW_RELIC_API_KEY}" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "deployment": {
+              "revision": "'"${GITHUB_SHA}"'",
+              "changelog": "GitHub Actions deployment",
+              "description": "Automated deployment via ArgoCD + GitHub Actions",
+              "user": "'"${GITHUB_ACTOR}"'"
+            }
+          }'
 
+         
   pipeline-summary:
     name: Pipeline Summary
     runs-on: ubuntu-latest

@@ -8,10 +8,6 @@ services:
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
-      SENTRY_DSN_PHP: ${SENTRY_DSN_PHP}  # From GitHub secrets or .env
-      SENTRY_DSN_JS: ${SENTRY_DSN_JS}
-      WP_ENV: ${WP_ENV:-development}
-      SENTRY_RELEASE: wordpress@${GITHUB_SHA:-local}
     volumes:
       - wordpress_data:/var/www/html
       - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins
@@ -34,6 +30,22 @@ services:
       interval: 3s
       timeout: 20s
       retries: 10
+
+  newrelic-infra:
+    image: newrelic/infrastructure:latest
+    container_name: newrelic-infra
+    cap_add:
+      - SYS_PTRACE
+    network_mode: host
+    pid: host
+    privileged: true
+    volumes:
+      - "/:/host:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      - NRIA_LICENSE_KEY=E3A46BDF0151EB7E711F4922D3F6B356968BA95C55A4BD020EA32B226DE78991
+      - NRIA_DISPLAY_NAME=wordpress-cicd-wsl
+    restart: unless-stopped
 
 volumes:
   wordpress_data:
