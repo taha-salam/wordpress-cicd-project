@@ -497,7 +497,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false   # prevents using the default GITHUB_TOKEN
+          persist-credentials: false   
 
       - name: Configure Git to use PAT (allows push to main)
         run: |
