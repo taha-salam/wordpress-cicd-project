@@ -553,7 +553,7 @@ jobs:
           echo "Argo CD is syncing wordpress-staging application"
           echo "Check status: https://localhost:8080/applications/wordpress-staging (after port-forward)"
         
-            - name: Notify New Relic of Deployment
+      - name: Notify New Relic of Deployment
         env:
           NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
         run: |
