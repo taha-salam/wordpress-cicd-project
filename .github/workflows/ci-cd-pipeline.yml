@@ -553,62 +553,6 @@ jobs:
           echo "Argo CD is syncing wordpress-staging application"
           echo "Check status: https://localhost:8080/applications/wordpress-staging (after port-forward)"
 
-
-  # ==============================
-  # STAGE 5: PRODUCTION DEPLOYMENT
-  # ==============================
-  production-deploy:
-    name: "Production – Deploy to Argo CD (Manual Approval)"
-    runs-on: ubuntu-latest
-    needs:
-      - staging-deploy-argocd
-    if: >
-      ${{ needs.staging-deploy-argocd.result == 'success' &&
-          github.ref == 'refs/heads/main' }}
-    environment: production           # ← this creates the approval gate
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Configure Git with PAT
-        run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "actions@github.com"
-          git remote set-url origin https://x-access-token:${{ secrets.PAT }}@github.com/${{ github.repository }}.git
-
-      - name: Create Production Trigger Manifest
-        run: |
-          mkdir -p deploy/production
-          cat > deploy/production/prod-trigger.yaml << EOF
-          apiVersion: v1
-          kind: ConfigMap
-          metadata:
-            name: prod-deploy-trigger
-            namespace: wordpress-production
-          data:
-            deployedAt: "$(date -u +"%Y-%m-%d %H:%M:%SZ")"
-            commit: "${{ github.sha }}"
-            triggeredBy: "${{ github.actor }}"
-            runId: "${{ github.run_id }}"
-          EOF
-
-      - name: Commit & Push Production Trigger
-        run: |
-          git add deploy/production/prod-trigger.yaml
-          
-          git commit -m "chore: trigger production deployment via Argo CD [skip ci]
-
-          All tests passed – production deploy
-          Commit: ${{ github.sha }}
-          Run: #${{ github.run_number }}" || echo "No changes to commit"
-          
-          git push --force-with-lease origin main
-          
-          echo "Production trigger pushed → Argo CD will deploy to production!"
-
   pipeline-summary:
     name: Pipeline Summary
     runs-on: ubuntu-latest
