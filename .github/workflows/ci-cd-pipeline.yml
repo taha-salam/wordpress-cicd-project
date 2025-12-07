@@ -493,16 +493,17 @@ jobs:
           github.ref == 'refs/heads/main' }}
 
     steps:
-      - name: Checkout Code (with full history + push ability)
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false   # prevents using the default GITHUB_TOKEN
 
-      - name: Configure Git User
+      - name: Configure Git to use PAT (allows push to main)
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.PAT }}@github.com/${{ github.repository }}.git
 
       - name: Create/Update Deployment Trigger Manifest
         run: |
