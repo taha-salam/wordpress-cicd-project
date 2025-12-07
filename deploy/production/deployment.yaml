@@ -5,8 +5,15 @@ metadata:
   namespace: wordpress-production
   labels:
     app: wordpress
+    environment: production
 spec:
   replicas: 3
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: wordpress
@@ -14,6 +21,7 @@ spec:
     metadata:
       labels:
         app: wordpress
+        environment: production
     spec:
       containers:
         - name: wordpress
@@ -30,3 +38,21 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
+          # These two probes are the magic that fixes Argo CD "Progressing" forever
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
