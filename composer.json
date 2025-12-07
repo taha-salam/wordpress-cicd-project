@@ -1,0 +1,9 @@
+{
+  "require": {
+    "sentry/sdk": "^4.0"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  }
+}

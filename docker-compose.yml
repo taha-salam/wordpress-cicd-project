@@ -8,6 +8,10 @@ services:
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
+      SENTRY_DSN_PHP: ${SENTRY_DSN_PHP}  # From GitHub secrets or .env
+      SENTRY_DSN_JS: ${SENTRY_DSN_JS}
+      WP_ENV: ${WP_ENV:-development}
+      SENTRY_RELEASE: wordpress@${GITHUB_SHA:-local}
     volumes:
       - wordpress_data:/var/www/html
       - ./wp-content/mu-plugins:/var/www/html/wp-content/mu-plugins
