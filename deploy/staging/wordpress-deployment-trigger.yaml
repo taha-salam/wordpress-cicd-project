@@ -6,13 +6,13 @@ metadata:
   labels:
     app.kubernetes.io/name: wordpress
     app.kubernetes.io/instance: staging
-    deploy-time: "20251207-111916"
+    deploy-time: "20251207-122053"
 data:
-  deployedAt: "2025-12-07 11:19:16Z"
-  commit: "d7b059cb1a1fe5c80ac45481a1169b30f5a4ae48"
+  deployedAt: "2025-12-07 12:20:53Z"
+  commit: "d9b01588cd4c7bfc6b80d3e64900f13ff32d3392"
   commitShort: ""
   branch: "main"
   triggeredBy: "taha-salam"
-  runId: "20003197188"
-  runNumber: "59"
-  pipelineUrl: "https://github.com/taha-salam/wordpress-cicd-project/actions/runs/20003197188"
+  runId: "20003869245"
+  runNumber: "61"
+  pipelineUrl: "https://github.com/taha-salam/wordpress-cicd-project/actions/runs/20003869245"
