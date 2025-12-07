@@ -543,7 +543,7 @@ jobs:
           Commit: ${{ github.sha }}
           Run: #${{ github.run_number }}" || echo "No changes to commit"
           
-          git push origin main
+          git push --force-with-lease origin main
           
           echo "Pushed manifest → Argo CD will now auto-sync and deploy!"
 
@@ -554,9 +554,9 @@ jobs:
           echo "Check status: https://localhost:8080/applications/wordpress-staging (after port-forward)"
 
 
-  # ───────────────────────────────
+  # ==============================
   # STAGE 5: PRODUCTION DEPLOYMENT
-  # ───────────────────────────────
+  # ==============================
   production-deploy:
     name: "Production – Deploy to Argo CD (Manual Approval)"
     runs-on: ubuntu-latest
@@ -599,7 +599,11 @@ jobs:
         run: |
           git add deploy/production/prod-trigger.yaml
           git commit -m "chore: trigger production deployment [skip ci]" || echo "No changes"
-          git push origin main
+          All tests passed
+          Commit: ${{ github.sha }}
+          Run: #${{ github.run_number }}" || echo "No changes to commit"
+          
+          git push --force-with-lease origin main
           echo "Production trigger pushed → Argo CD will deploy!"
 
   pipeline-summary:
