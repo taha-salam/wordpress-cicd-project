@@ -598,13 +598,16 @@ jobs:
       - name: Commit & Push Production Trigger
         run: |
           git add deploy/production/prod-trigger.yaml
-          git commit -m "chore: trigger production deployment [skip ci]" || echo "No changes"
-          All tests passed
+          
+          git commit -m "chore: trigger production deployment via Argo CD [skip ci]
+
+          All tests passed – production deploy
           Commit: ${{ github.sha }}
           Run: #${{ github.run_number }}" || echo "No changes to commit"
           
           git push --force-with-lease origin main
-          echo "Production trigger pushed → Argo CD will deploy!"
+          
+          echo "Production trigger pushed → Argo CD will deploy to production!"
 
   pipeline-summary:
     name: Pipeline Summary
